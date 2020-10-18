@@ -1,2 +1,4 @@
-from game import ONITAMA_CARDS
+from game import ONITAMA_CARDS, Game
+
+onitama_game = Game()
 
