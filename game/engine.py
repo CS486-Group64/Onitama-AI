@@ -98,7 +98,7 @@ class Game:
         if self.board[0][BOARD_WIDTH // 2] == "B":
             return "blue"
         if self.board[-1][BOARD_WIDTH // 2] == "R":
-            return "blue"
+            return "red"
         return None
     
 
