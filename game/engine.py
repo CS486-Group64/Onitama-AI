@@ -1,5 +1,6 @@
-"""Onitama game engine. Note that (x, y) goes right and down."""
+"""Onitama game engine. Note that (x, y) goes right and down. Blue uses positive numbers, red uses negative numbers."""
 
+import numpy as np
 import random
 from typing import List, NamedTuple, Optional
 
@@ -28,6 +29,11 @@ class Card:
     def __repr__(self):
         return f"Card({self.name!r},\n{self.visualize()})"
 
+class Move(NamedTuple):
+    start: Point
+    end: Point
+    card: str
+
 class Game:
     def __init__(self, *, red_cards: Optional[List[str]] = None, blue_cards: Optional[List[str]] = None,
                  neutral_card: Optional[List[str]] = None, board=None, starting_player=None):
@@ -39,7 +45,7 @@ class Game:
             red_cards = [ONITAMA_CARDS[card] for card in red_cards]
         if blue_cards:
             cards -= set(blue_cards)
-            blue_cards = [ONITAMA_CARDS[card] for card in red_cards]
+            blue_cards = [ONITAMA_CARDS[card] for card in blue_cards]
         if neutral_card:
             cards.remove(neutral_card)
             neutral_card = ONITAMA_CARDS[neutral_card]
@@ -57,12 +63,13 @@ class Game:
             cards.remove(card)
         if not starting_player:
             starting_player = neutral_card.starting_player
-        if not board:
-            board = [["r", "r", "R", "r", "r"],
-                     [".", ".", ".", ".", "."],
-                     [".", ".", ".", ".", "."],
-                     [".", ".", ".", ".", "."],
-                     ["b", "b", "B", "b", "b"]]
+        if board is None:
+            board = np.array([
+                [-1, -1, -2, -1, -1],
+                [0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0],
+                [1, 1, 2, 1, 1]])
         
         self.board = board
         self.red_cards = red_cards
@@ -70,15 +77,56 @@ class Game:
         self.neutral_card = neutral_card
         self.current_player = starting_player
     
+    def visualize_piece(self, piece):
+        piece_mapping = {-2: "R", -1: "r", 0: ".", 1: "b", 2: "B"}
+        return piece_mapping.get(piece)
+    
     def visualize_board(self):
-        return "\n".join("".join(self.board[y][x] for x in range(BOARD_WIDTH)) for y in range(BOARD_HEIGHT))
+        return "\n".join("".join(self.visualize_piece(self.board[y][x]) for x in range(BOARD_WIDTH)) for y in range(BOARD_HEIGHT))
+    
+    def visualize(self):
+        return (f"{self.visualize_board()}\n"
+                f"current_player: {'blue' if self.current_player > 0 else 'red'}\n"
+                f"red_cards: {' '.join(card.name for card in self.red_cards)}\n" +
+                "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.red_cards[0].visualize().split("\n"), self.red_cards[1].visualize().split("\n"))) + "\n" +
+                f"blue_cards: {' '.join(card.name for card in self.blue_cards)}\n" +
+                "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.blue_cards[0].visualize().split("\n"), self.blue_cards[1].visualize().split("\n"))) + "\n" +
+                f"neutral_card: {self.neutral_card.name}\n"
+                f"{self.neutral_card.visualize()}")
+    
+    def copy(self):
+        return Game(red_cards=[card.name for card in self.red_cards], blue_cards=[card.name for card in self.blue_cards],
+                    neutral_card=self.neutral_card.name, board=self.board.copy(), starting_player=self.current_player)
     
     def __repr__(self):
-        return (f"Game(\n{self.visualize_board()}\n"
-                f"current_player: {self.current_player}\n"
-                f"red_cards: {' '.join(card.name for card in self.red_cards)}\n"
-                f"blue_cards: {' '.join(card.name for card in self.blue_cards)}\n"
-                f"neutral_card: {self.neutral_card.name})")
+        return f"Game(\n{self.visualize()}\n)"
+    
+    def legal_moves(self):
+        moves = []
+        cards = self.red_cards if self.current_player == -1 else self.blue_cards
+        for y in range(BOARD_HEIGHT):
+            for x in range(BOARD_WIDTH):
+                if self.board[y][x] * self.current_player > 0:
+                    direction_mod = self.current_player
+                    for card in cards:
+                        for card_move in card.moves:
+                            new_x = x + direction_mod * card_move.x
+                            new_y = y + direction_mod * card_move.y
+                            if new_x in range(BOARD_WIDTH) and new_y in range(BOARD_HEIGHT) and self.board[new_y][new_x] * self.current_player <= 0:
+                                moves.append(Move(Point(x, y), Point(new_x, new_y), card.name))
+        if not moves:
+            # pass due to no piece moves, but have to swap a card
+            return [Move(Point(0, 0), Point(0, 0), card) for card in cards]
+        return moves
+    
+    def apply_move(self, move: Move):
+        cards = self.red_cards if self.current_player == -1 else self.blue_cards
+        card_idx = 0 if cards[0].name == move.card else 1
+        piece = self.board[move.start.y][move.start.x]
+        self.board[move.start.y][move.start.x] = 0
+        self.board[move.end.y][move.end.x] = piece
+        self.neutral_card, cards[card_idx] = cards[card_idx], self.neutral_card
+        self.current_player *= -1
     
     def determine_winner(self):
         # Way of the Stone (capture opponent master)
@@ -86,41 +134,41 @@ class Game:
         blue_alive = False
         for y in range(BOARD_HEIGHT):
             for x in range(BOARD_WIDTH):
-                if self.board[y][x] == "R":
+                if self.board[y][x] == -2:
                     red_alive = True
-                if self.board[y][x] == "B":
+                if self.board[y][x] == 2:
                     blue_alive = True
         if not red_alive:
-            return "blue"
+            return 1
         if not blue_alive:
-            return "red"
+            return -1
         # Way of the Stream (move master to opposite square)
-        if self.board[0][BOARD_WIDTH // 2] == "B":
-            return "blue"
-        if self.board[-1][BOARD_WIDTH // 2] == "R":
-            return "red"
-        return None
+        if self.board[0][BOARD_WIDTH // 2] == 2:
+            return 1
+        if self.board[-1][BOARD_WIDTH // 2] == -2:
+            return -1
+        return 0
     
 
 
 ONITAMA_CARDS = {
     # symmetrical
-    "tiger": Card("tiger", "blue", Point(0, -2), Point(0, 1)),
-    "dragon": Card("dragon", "red", Point(-2, -1), Point(2, -1), Point(-1, 1), Point(1, 1)),
-    "crab": Card("crab", "blue", Point(0, -1), Point(-2, 0), Point(2, 0)),
-    "elephant": Card("elephant", "red", Point(-1, -1), Point(1, -1), Point(-1, 0), Point(1, 0)),
-    "monkey": Card("monkey", "blue", Point(-1, -1), Point(1, -1), Point(-1, 1), Point(1, 1)),
-    "mantis": Card("mantis", "red", Point(-1, -1), Point(1, -1), Point(0, 1)),
-    "crane": Card("crane", "blue", Point(0, -1), Point(-1, 1), Point(1, 1)),
-    "boar": Card("boar", "red", Point(0, -1), Point(-1, 0), Point(1, 0)),
+    "tiger": Card("tiger", 1, Point(0, -2), Point(0, 1)),
+    "dragon": Card("dragon", -1, Point(-2, -1), Point(2, -1), Point(-1, 1), Point(1, 1)),
+    "crab": Card("crab", 1, Point(0, -1), Point(-2, 0), Point(2, 0)),
+    "elephant": Card("elephant", -1, Point(-1, -1), Point(1, -1), Point(-1, 0), Point(1, 0)),
+    "monkey": Card("monkey", 1, Point(-1, -1), Point(1, -1), Point(-1, 1), Point(1, 1)),
+    "mantis": Card("mantis", -1, Point(-1, -1), Point(1, -1), Point(0, 1)),
+    "crane": Card("crane", 1, Point(0, -1), Point(-1, 1), Point(1, 1)),
+    "boar": Card("boar", -1, Point(0, -1), Point(-1, 0), Point(1, 0)),
     # left-leaning
-    "frog": Card("frog", "red", Point(-1, -1), Point(-2, 0), Point(1, 1)),
-    "goose": Card("goose", "blue", Point(-1, -1), Point(-1, 0), Point(1, 0), Point(1, 1)),
-    "horse": Card("horse", "red", Point(0, -1), Point(-1, 0), Point(0, 1)),
-    "eel": Card("eel", "blue", Point(-1, -1), Point(1, 0), Point(-1, 1)),
+    "frog": Card("frog", -1, Point(-1, -1), Point(-2, 0), Point(1, 1)),
+    "goose": Card("goose", 1, Point(-1, -1), Point(-1, 0), Point(1, 0), Point(1, 1)),
+    "horse": Card("horse", -1, Point(0, -1), Point(-1, 0), Point(0, 1)),
+    "eel": Card("eel", 1, Point(-1, -1), Point(1, 0), Point(-1, 1)),
     # right-leaning
-    "rabbit": Card("rabbit", "blue", Point(1, -1), Point(2, 0), Point(-1, 1)),
-    "rooster": Card("rooster", "red", Point(1, -1), Point(-1, 0), Point(1, 0), Point(-1, 1)),
-    "ox": Card("ox", "blue", Point(0, -1), Point(1, 0), Point(0, 1)),
-    "cobra": Card("cobra", "red", Point(1, -1), Point(-1, 0), Point(1, 1)),
+    "rabbit": Card("rabbit", 1, Point(1, -1), Point(2, 0), Point(-1, 1)),
+    "rooster": Card("rooster", -1, Point(1, -1), Point(-1, 0), Point(1, 0), Point(-1, 1)),
+    "ox": Card("ox", 1, Point(0, -1), Point(1, 0), Point(0, 1)),
+    "cobra": Card("cobra", -1, Point(1, -1), Point(-1, 0), Point(1, 1)),
 }
