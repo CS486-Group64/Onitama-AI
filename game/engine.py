@@ -149,6 +149,31 @@ class Game:
             return -1
         return 0
     
+    def evaluate(self):
+        """Evaluates a given board position. Very arbitrary.
+        Assigns a win to +/-50.
+        Each piece is worth 2, king is worth 4.
+        Shortest distance (diagonals have length 1) from king to temple is subtracted."""
+        winner = self.determine_winner()
+        if winner:
+            return winner * 50
+        evaluation = 0
+        blue_king_pos = Point(0, 0)
+        red_king_pos = Point(0, 0)
+        for y in range(BOARD_HEIGHT):
+            for x in range(BOARD_WIDTH):
+                # Piece evaluation
+                piece = self.board[y][x]
+                evaluation += piece * 2
+                if piece == 2:
+                    blue_king_pos = Point(x, y)
+                elif piece == -2:
+                    red_king_pos = Point(x, y)
+        evaluation -= max(abs(blue_king_pos.x - 2), abs(blue_king_pos.y - 4))
+        evaluation += max(abs(red_king_pos.x - 2), abs(red_king_pos.y - 0))
+        return evaluation
+
+
 
 
 ONITAMA_CARDS = {
