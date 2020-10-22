@@ -11,6 +11,15 @@ class Point(NamedTuple):
     x: int
     y: int
 
+    def to_algebraic_notation(self):
+        return chr(ord("a") + self.x) + str(5 - self.y)
+    
+    @classmethod
+    def from_algebraic_notation(cls, location):
+        x = ord(location[0]) - ord("a")
+        y = 5 - int(location[1])
+        return cls(x, y)
+
 class Card:
     def __init__(self, name, starting_player, *moves: List[Point]):
         """Moves are represented as a list of Points representing movement relative to (0, 0)"""
@@ -33,6 +42,9 @@ class Move(NamedTuple):
     start: Point
     end: Point
     card: str
+
+    def __str__(self):
+        return f"{self.card} {self.start.to_algebraic_notation()} {self.end.to_algebraic_notation()}"
 
 class Game:
     def __init__(self, *, red_cards: Optional[List[str]] = None, blue_cards: Optional[List[str]] = None,
@@ -85,7 +97,10 @@ class Game:
         return "\n".join("".join(self.visualize_piece(self.board[y][x]) for x in range(BOARD_WIDTH)) for y in range(BOARD_HEIGHT))
     
     def visualize(self):
-        return (f"{self.visualize_board()}\n"
+        fancy_board = [f"{5 - i} {line}" for i, line in enumerate(self.visualize_board().split("\n"))]
+        fancy_board.append("  abcde")
+        fancy_board_str = "\n".join(fancy_board)
+        return (f"{fancy_board_str}\n"
                 f"current_player: {'blue' if self.current_player > 0 else 'red'}\n"
                 f"red_cards: {' '.join(card.name for card in self.red_cards)}\n" +
                 "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.red_cards[0].visualize().split("\n"), self.red_cards[1].visualize().split("\n"))) + "\n" +
@@ -100,6 +115,11 @@ class Game:
     
     def __repr__(self):
         return f"Game(\n{self.visualize()}\n)"
+    
+    def serialize(self):
+        sorted_red = "_".join(sorted(card.name for card in self.red_cards))
+        sorted_blue = "_".join(sorted(card.name for card in self.blue_cards))
+        return f"{self.visualize_board()}\n{self.current_player}\n{sorted_red}\n{sorted_blue}\n{self.neutral_card.name}"
     
     def legal_moves(self):
         moves = []

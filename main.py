@@ -1,4 +1,4 @@
-from game import ONITAMA_CARDS, Game, OnitamaAI
+from game import ONITAMA_CARDS, Game, OnitamaAI, Point
 
 human = 1 # blue
 g = Game()
@@ -8,38 +8,43 @@ ai = OnitamaAI(g, -human)
 print("Human is", "red" if human < 0 else "blue")
 
 
-for i in range(100):
-    print("Turn", i // 2 + 1, "red" if g.current_player < 0 else "blue")
-    print(g)
+def run_game(max_turns=100):
+    for i in range(max_turns):
+        print("Turn", i // 2 + 1, "red" if g.current_player < 0 else "blue")
+        print(g.visualize())
 
-    if g.current_player == human:
-        human_move = None
+        if g.current_player == human:
+            human_move = None
 
-        while human_move is None:
-            move_str = input("Enter your move. Format: card startx starty endx endy\n> ")
-            params = move_str.split(" ")
-            card = params[0]
-            startx = int(params[1])
-            starty = int(params[2])
-            endx = int(params[3])
-            endy = int(params[4])
+            while human_move is None:
+                legal_moves = g.legal_moves()
+                move_str = input("Enter your move. Format: card start end (e.g. tiger c1 c3). Type 'quit' to quit.\n> ")
+                if move_str == "quit":
+                    return
+                params = move_str.split(" ")
+                if len(params) == 3:
+                    card = params[0]
+                    start = Point.from_algebraic_notation(params[1])
+                    end = Point.from_algebraic_notation(params[2])
+                    
+                    for move in legal_moves:
+                        if move.card == card and move.start == start and move.end == end:
+                            human_move = move
+                            break
+                    if human_move:
+                        break
+                print("Invalid move. Valid moves:", ", ".join(map(str, legal_moves)))
             
-            legal_moves = g.legal_moves()
-            for move in legal_moves:
-                if move.card == card and move.start.x == startx and move.start.y == starty and move.end.x == endx and move.end.y == endy:
-                    human_move = move
-                    break
-            else:
-                print("Invalid move. Valid moves:", legal_moves)
-        
-        g.apply_move(human_move)
+            g.apply_move(human_move)
 
-        if g.determine_winner() == human:
-            print("Human wins!")
-            break
-    elif g.current_player == -human:
-        ai.decide_move()
+            if g.determine_winner() == human:
+                print("Human wins!")
+                break
+        elif g.current_player == -human:
+            ai.decide_move()
 
-        if g.determine_winner() == -human:
-            print("AI wins!")
-            break
+            if g.determine_winner() == -human:
+                print("AI wins!")
+                break
+
+run_game()
