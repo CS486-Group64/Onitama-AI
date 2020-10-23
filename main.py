@@ -38,13 +38,17 @@ def run_game(max_turns=100):
             g.apply_move(human_move)
 
             if g.determine_winner() == human:
+                print(g.visualize())
                 print("Human wins!")
-                break
+                return
         elif g.current_player == -human:
             ai.decide_move()
 
             if g.determine_winner() == -human:
+                print(g.visualize())
                 print("AI wins!")
-                break
+                return
+    print(g.visualize())
+    print("Draw due to round limit")
 
 run_game()
