@@ -1,3 +1,4 @@
+from datetime import datetime
 from game import ONITAMA_CARDS, Game, OnitamaAI, Point
 
 human = 1 # blue
@@ -42,7 +43,10 @@ def run_game(max_turns=100):
                 print("Human wins!")
                 return
         elif g.current_player == -human:
+            print("AI is thinking...")
+            now = datetime.now()
             ai.decide_move()
+            print("AI took", (datetime.now() - now).total_seconds(), "s")
 
             if g.determine_winner() == -human:
                 print(g.visualize())
