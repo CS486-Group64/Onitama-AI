@@ -17,7 +17,7 @@ def run_game(max_turns=100):
             human_move = None
 
             while human_move is None:
-                legal_moves = g.legal_moves()
+                legal_moves = list(g.legal_moves())
                 move_str = input("Enter your move. Format: card start end (e.g. tiger c1 c3). Type 'quit' to quit.\n> ")
                 if move_str == "quit":
                     return

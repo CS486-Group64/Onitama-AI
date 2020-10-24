@@ -90,8 +90,8 @@ class Game:
         self.current_player = starting_player
     
     def visualize_piece(self, piece):
-        piece_mapping = {-2: "R", -1: "r", 0: ".", 1: "b", 2: "B"}
-        return piece_mapping.get(piece)
+        # piece_mapping = {-2: "R", -1: "r", 0: ".", 1: "b", 2: "B"}
+        return [".", "b", "B", "R", "r"][piece]
     
     def visualize_board(self):
         return "\n".join("".join(self.visualize_piece(self.board[y][x]) for x in range(BOARD_WIDTH)) for y in range(BOARD_HEIGHT))
@@ -122,22 +122,22 @@ class Game:
         return f"{self.visualize_board()}\n{self.current_player}\n{sorted_red}\n{sorted_blue}\n{self.neutral_card.name}"
     
     def legal_moves(self):
-        moves = []
         cards = self.red_cards if self.current_player == -1 else self.blue_cards
+        has_valid_move = False
         for y in range(BOARD_HEIGHT):
             for x in range(BOARD_WIDTH):
                 if self.board[y][x] * self.current_player > 0:
-                    direction_mod = self.current_player
                     for card in cards:
                         for card_move in card.moves:
-                            new_x = x + direction_mod * card_move.x
-                            new_y = y + direction_mod * card_move.y
+                            new_x = x + self.current_player * card_move.x
+                            new_y = y + self.current_player * card_move.y
                             if new_x in range(BOARD_WIDTH) and new_y in range(BOARD_HEIGHT) and self.board[new_y][new_x] * self.current_player <= 0:
-                                moves.append(Move(Point(x, y), Point(new_x, new_y), card.name))
-        if not moves:
+                                has_valid_move = True
+                                yield Move(Point(x, y), Point(new_x, new_y), card.name)
+        if not has_valid_move:
             # pass due to no piece moves, but have to swap a card
-            return [Move(Point(0, 0), Point(0, 0), card) for card in cards]
-        return moves
+            for card in cards:
+                yield Move(Point(0, 0), Point(0, 0), card)
     
     def apply_move(self, move: Move):
         cards = self.red_cards if self.current_player == -1 else self.blue_cards
@@ -149,23 +149,15 @@ class Game:
         self.current_player *= -1
     
     def determine_winner(self):
-        # Way of the Stone (capture opponent master)
-        red_alive = False
-        blue_alive = False
-        for y in range(BOARD_HEIGHT):
-            for x in range(BOARD_WIDTH):
-                if self.board[y][x] == -2:
-                    red_alive = True
-                if self.board[y][x] == 2:
-                    blue_alive = True
-        if not red_alive:
-            return 1
-        if not blue_alive:
-            return -1
         # Way of the Stream (move master to opposite square)
         if self.board[0][BOARD_WIDTH // 2] == 2:
             return 1
         if self.board[-1][BOARD_WIDTH // 2] == -2:
+            return -1
+        # Way of the Stone (capture opponent master)
+        if -2 not in self.board:
+            return 1
+        if 2 not in self.board:
             return -1
         return 0
     
@@ -178,19 +170,21 @@ class Game:
         if winner:
             return winner * 50
         evaluation = 0
-        blue_king_pos = Point(0, 0)
-        red_king_pos = Point(0, 0)
+        blue_king_x = blue_king_y = 0
+        red_king_x = red_king_y = 0
         for y in range(BOARD_HEIGHT):
             for x in range(BOARD_WIDTH):
                 # Piece evaluation
                 piece = self.board[y][x]
                 evaluation += piece * 2
                 if piece == 2:
-                    blue_king_pos = Point(x, y)
+                    blue_king_x = x
+                    blue_king_y = y
                 elif piece == -2:
-                    red_king_pos = Point(x, y)
-        evaluation -= max(abs(blue_king_pos.x - 2), abs(blue_king_pos.y - 4))
-        evaluation += max(abs(red_king_pos.x - 2), abs(red_king_pos.y - 0))
+                    red_king_x = x
+                    red_king_y = y
+        evaluation -= max(abs(blue_king_x - 2), abs(blue_king_y - 4))
+        evaluation += max(abs(red_king_x - 2), abs(red_king_y - 0))
         return evaluation
 
 
