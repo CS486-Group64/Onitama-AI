@@ -27,12 +27,15 @@ class Card:
         self.starting_player = starting_player
         self.moves = moves
     
-    def visualize(self):
+    def visualize(self, reverse=False):
         # Cards are displayed with board centre (2, 2) at (0, 0)
         output = [["."] * BOARD_WIDTH for _ in range(BOARD_HEIGHT)]
         output[BOARD_HEIGHT // 2][BOARD_WIDTH // 2] = "O"
         for move in self.moves:
-            output[move.y + BOARD_HEIGHT // 2][move.x + BOARD_WIDTH // 2] = "X"
+            if reverse:
+                output[BOARD_HEIGHT // 2 - move.y][BOARD_WIDTH // 2 - move.x] = "X"
+            else:
+                output[move.y + BOARD_HEIGHT // 2][move.x + BOARD_WIDTH // 2] = "X"
         return "\n".join("".join(row) for row in output)
 
     def __repr__(self):
@@ -97,17 +100,21 @@ class Game:
         return "\n".join("".join(self.visualize_piece(self.board[y][x]) for x in range(BOARD_WIDTH)) for y in range(BOARD_HEIGHT))
     
     def visualize(self):
-        fancy_board = [f"{5 - i} {line}" for i, line in enumerate(self.visualize_board().split("\n"))]
+        fancy_board = ["  abcde"]
+        for i, line in enumerate(self.visualize_board().split("\n")):
+            fancy_board.append(f"{5 - i} {line} {5 - i}")
         fancy_board.append("  abcde")
         fancy_board_str = "\n".join(fancy_board)
-        return (f"{fancy_board_str}\n"
+        return (
                 f"current_player: {'blue' if self.current_player > 0 else 'red'}\n"
                 f"red_cards: {' '.join(card.name for card in self.red_cards)}\n" +
-                "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.red_cards[0].visualize().split("\n"), self.red_cards[1].visualize().split("\n"))) + "\n" +
-                f"blue_cards: {' '.join(card.name for card in self.blue_cards)}\n" +
-                "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.blue_cards[0].visualize().split("\n"), self.blue_cards[1].visualize().split("\n"))) + "\n" +
+                "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.red_cards[0].visualize(reverse=True).split("\n"), self.red_cards[1].visualize(reverse=True).split("\n"))) +
+                f"\n{fancy_board_str}\n"
                 f"neutral_card: {self.neutral_card.name}\n"
-                f"{self.neutral_card.visualize()}")
+                f"{self.neutral_card.visualize(reverse=self.current_player < 0)}\n"
+                f"blue_cards: {' '.join(card.name for card in self.blue_cards)}\n" +
+                "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.blue_cards[0].visualize().split("\n"), self.blue_cards[1].visualize().split("\n")))
+                )
     
     def copy(self):
         return Game(red_cards=[card.name for card in self.red_cards], blue_cards=[card.name for card in self.blue_cards],
