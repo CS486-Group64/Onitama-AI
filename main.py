@@ -1,12 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from game import ONITAMA_CARDS, Game, OnitamaAI, Point
-
-human = 1 # blue
-g = Game()
-
-ai = OnitamaAI(g, -human)
-
-print("Human is", "red" if human < 0 else "blue")
 
 
 def run_game(max_turns=100):
@@ -55,4 +48,23 @@ def run_game(max_turns=100):
     print(g.visualize())
     print("Draw due to round limit")
 
-run_game()
+if __name__ == "__main__":
+    time_limit = 0
+    while not time_limit:
+        try:
+            time_limit_str = input("Enter AI time limit in milliseconds (default 200ms): ")
+            if time_limit_str:
+                time_limit = int(time_limit_str)
+            else:
+                time_limit = 200
+        except ValueError:
+            print("Time limit must be an integer.")
+
+    human = 1 # blue
+    g = Game()
+
+    ai = OnitamaAI(g, -human, timedelta(milliseconds=time_limit))
+
+    print("Human is", "red" if human < 0 else "blue")
+
+    run_game()
