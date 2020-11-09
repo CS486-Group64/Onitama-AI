@@ -101,54 +101,56 @@ class Move(NamedTuple):
         return cls(Point.from_index(start_index), Point.from_index(end_index), CARD_INDEX[card_index])
 
 class Game:
-    def __init__(self, *, red_cards: Optional[List[str]] = None, blue_cards: Optional[List[str]] = None,
-                 neutral_card: Optional[List[str]] = None, board=None, starting_player=None):
-        """Represents an Onitama game. Generates random cards to fill in missing red_cards, blue_cards,
+    WIN_BITMASK = [0b00000_00000_00000_00000_00100, 0b00100_00000_00000_00000_00000]
+
+    def __init__(self, *, red_cards: Optional[List[Card]] = None, blue_cards: Optional[List[Card]] = None,
+                 neutral_card: Optional[Card] = None, starting_player=None,
+                 bitboard_king: Optional[List[int]] = None, bitboard_pawns: Optional[List[int]] = None):
+        """Represents an Onitama game. Generates random cards if missing red_cards, blue_cards,
         or neutral_card. If starting_player is not specified, uses neutral_card.starting_player."""
-        cards = set(ONITAMA_CARDS)
-        if red_cards:
-            cards -= set(red_cards)
-            red_cards = [ONITAMA_CARDS[card] for card in red_cards]
-        if blue_cards:
-            cards -= set(blue_cards)
-            blue_cards = [ONITAMA_CARDS[card] for card in blue_cards]
-        if neutral_card:
-            cards.remove(neutral_card)
-            neutral_card = ONITAMA_CARDS[neutral_card]
-        if not red_cards:
+        if not (red_cards and blue_cards and neutral_card):
+            cards = set(ONITAMA_CARDS)
             card1, card2 = random.sample(cards, k=2)
             red_cards = [ONITAMA_CARDS.get(card1), ONITAMA_CARDS.get(card2)]
             cards -= {card1, card2}
-        if not blue_cards:
+
             card1, card2 = random.sample(cards, k=2)
             blue_cards = [ONITAMA_CARDS.get(card1), ONITAMA_CARDS.get(card2)]
             cards -= {card1, card2}
-        if not neutral_card:
+
             card = random.sample(cards, k=1)[0]
             neutral_card = ONITAMA_CARDS.get(card)
             cards.remove(card)
         if not starting_player:
             starting_player = neutral_card.starting_player
-        if board is None:
-            board = np.array([
-                [-1, -1, -2, -1, -1],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0],
-                [1, 1, 2, 1, 1]])
         
-        self.board = board
         self.red_cards = red_cards
         self.blue_cards = blue_cards
         self.neutral_card = neutral_card
-        self.current_player = starting_player
+        # -1, 1 -> 0, 1 (red, blue)
+        self.current_player = (starting_player + 1) // 2
+        # board
+        self.bitboard_king = bitboard_king or [0b00100_00000_00000_00000_00000, 0b00000_00000_00000_00000_00100]
+        self.bitboard_pawns = bitboard_pawns or [0b11011_00000_00000_00000_00000, 0b00000_00000_00000_00000_11011]
     
-    def visualize_piece(self, piece):
-        # piece_mapping = {-2: "R", -1: "r", 0: ".", 1: "b", 2: "B"}
-        return [".", "b", "B", "R", "r"][piece]
+    def get_piece_char_mapping(self):
+        return {
+            "R": self.bitboard_king[0],
+            "r": self.bitboard_pawns[0],
+            "b": self.bitboard_pawns[1],
+            "B": self.bitboard_king[1],
+        }
     
     def visualize_board(self):
-        return "\n".join("".join(self.visualize_piece(self.board[y][x]) for x in range(BOARD_WIDTH)) for y in range(BOARD_HEIGHT))
+        output = [["."] * BOARD_WIDTH for _ in range(BOARD_HEIGHT)]
+        for char, bitfield in self.get_piece_char_mapping().items():
+            for i, c in enumerate(f"{bitfield:0{BOARD_WIDTH * BOARD_HEIGHT}b}"):
+                if c == "1":
+                    # i should go from 24 to 0
+                    point = Point.from_index(BOARD_WIDTH * BOARD_HEIGHT - 1 - i)
+                    output[point.y][point.x] = char
+
+        return "\n".join("".join(row) for row in output)
     
     def visualize(self):
         fancy_board = ["  abcde"]
@@ -162,26 +164,48 @@ class Game:
                 "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.red_cards[0].visualize(reverse=True).split("\n"), self.red_cards[1].visualize(reverse=True).split("\n"))) +
                 f"\n{fancy_board_str}\n"
                 f"neutral_card: {self.neutral_card.name}\n"
-                f"{self.neutral_card.visualize(reverse=self.current_player < 0)}\n"
+                f"{self.neutral_card.visualize(reverse=self.current_player == 0)}\n"
                 f"blue_cards: {' '.join(card.name for card in self.blue_cards)}\n" +
                 "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.blue_cards[0].visualize().split("\n"), self.blue_cards[1].visualize().split("\n")))
                 )
     
     def copy(self):
-        return Game(red_cards=[card.name for card in self.red_cards], blue_cards=[card.name for card in self.blue_cards],
-                    neutral_card=self.neutral_card.name, board=self.board.copy(), starting_player=self.current_player)
+        return Game(red_cards=self.red_cards, blue_cards=self.blue_cards, neutral_card=self.neutral_card,
+                    starting_player=self.current_player,
+                    bitboard_king=self.bitboard_king.copy(), bitboard_pawns=self.bitboard_pawns.copy())
     
     def __repr__(self):
         return f"Game(\n{self.visualize()}\n)"
     
     def serialize(self):
-        sorted_red = "_".join(sorted(card.name for card in self.red_cards))
-        sorted_blue = "_".join(sorted(card.name for card in self.blue_cards))
-        return f"{self.visualize_board()}\n{self.current_player}\n{sorted_red}\n{sorted_blue}\n{self.neutral_card.name}"
-    
+        serialized = self.current_player
+        for i in range(2):
+            serialized <<= BOARD_WIDTH * BOARD_HEIGHT
+            serialized |= self.bitboard_king[i]
+            serialized <<= BOARD_WIDTH * BOARD_HEIGHT
+            serialized |= self.bitboard_pawns[i]
+        # sort cards
+        red_1, red_2 = sorted(INDEX_CARD[card.name] for card in self.red_cards)
+        serialized <<= 4
+        serialized |= red_1
+        serialized <<= 4
+        serialized |= red_2
+        blue_1, blue_2 = sorted(INDEX_CARD[card.name] for card in self.blue_cards)
+        serialized <<= 4
+        serialized |= blue_1
+        serialized <<= 4
+        serialized |= blue_2
+        serialized <<= 4
+        serialized |= INDEX_CARD[self.neutral_card.name]
+
+        return serialized
+
     def legal_moves(self):
-        cards = self.red_cards if self.current_player == -1 else self.blue_cards
+        cards = self.red_cards if self.current_player == 0 else self.blue_cards
         has_valid_move = False
+
+        player_bitboard = self.bitboard_king[self.current_player] | self.bitboard_pawns[self.current_player]
+
         for y in range(BOARD_HEIGHT):
             for x in range(BOARD_WIDTH):
                 if self.board[y][x] * self.current_player > 0:
@@ -197,26 +221,37 @@ class Game:
             for card in cards:
                 yield Move(Point(0, 0), Point(0, 0), card)
     
-    def apply_move(self, move: Move):
-        cards = self.red_cards if self.current_player == -1 else self.blue_cards
-        card_idx = 0 if cards[0].name == move.card else 1
-        piece = self.board[move.start.y][move.start.x]
-        self.board[move.start.y][move.start.x] = 0
-        self.board[move.end.y][move.end.x] = piece
+    def apply_move(self, start_mask: int, end_mask: int, card: str):
+        cards = self.red_cards if self.current_player == 0 else self.blue_cards
+        card_idx = 0 if cards[0].name == card else 1
+
+        if self.bitboard_pawns[1 - self.current_player] & end_mask:
+            # captured opponent pawn
+            self.bitboard_pawns[1 - self.current_player] &= ~end_mask
+        if self.bitboard_king[1 - self.current_player] & end_mask:
+            # captured opponent king
+            self.bitboard_king[1 - self.current_player] &= ~end_mask
+        if self.bitboard_pawns[self.current_player] & start_mask:
+            # moved own pawn
+            self.bitboard_pawns[self.current_player] &= ~start_mask
+            self.bitboard_pawns[self.current_player] |= end_mask
+        else:
+            # moved own king
+            self.bitboard_king[self.current_player] &= ~start_mask
+            self.bitboard_king[self.current_player] |= end_mask
+
         self.neutral_card, cards[card_idx] = cards[card_idx], self.neutral_card
-        self.current_player *= -1
+        self.current_player = 1 - self.current_player
     
     def determine_winner(self):
-        # Way of the Stream (move master to opposite square)
-        if self.board[0][BOARD_WIDTH // 2] == 2:
-            return 1
-        if self.board[-1][BOARD_WIDTH // 2] == -2:
-            return -1
-        # Way of the Stone (capture opponent master)
-        if -2 not in self.board:
-            return 1
-        if 2 not in self.board:
-            return -1
+        """Returns -1 for red win, 1 for blue win, 0 for no win"""
+        for i in range(2):
+            # Way of the Stone (capture opponent master)
+            if not self.bitboard_king[i]:
+                return 1 - i * 2
+            # Way of the Stream (move master to opposite square)
+            if self.bitboard_king[i] == self.WIN_BITMASK[i]:
+                return i * 2 - 1
         return 0
     
     def evaluate(self):

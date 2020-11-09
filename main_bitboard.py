@@ -8,3 +8,5 @@ monkey = ONITAMA_CARDS["monkey"]
 frog = ONITAMA_CARDS["frog"]
 
 move = Move(Point(0, 0), Point(1, 1), "monkey")
+
+g = Game()
