@@ -75,18 +75,36 @@ def visualize_bitboard(bitboard):
     output = [s[i:i+BOARD_WIDTH] for i in range(0, BOARD_HEIGHT * BOARD_WIDTH, BOARD_HEIGHT)]
     return "\n".join(output)
 
+def count_trailing_zeroes(num):
+    # adapted from https://stackoverflow.com/a/56320918
+    if not num:
+        return 32
+    num &= -num # keep only right-most 1
+    count = 0
+    if num & 0xAAAAAAAA:
+        count |= 1 # binary 10..1010
+    if num & 0xCCCCCCCC:
+        count |= 2 # binary 1100..11001100
+    if num & 0xF0F0F0F0:
+        count |= 4
+    if num & 0xFF00FF00:
+        count |= 8
+    if num & 0xFFFF0000:
+        count |= 16 
+    return count
+
 class Move(NamedTuple):
-    start: Point
-    end: Point
+    start: int
+    end: int
     card: str
 
     def __str__(self):
-        return f"{self.card} {self.start.to_algebraic_notation()} {self.end.to_algebraic_notation()}"
+        return f"{self.card} {Point.from_index(self.start).to_algebraic_notation()} {Point.from_index(self.end).to_algebraic_notation()}"
     
     def to_compact_repr(self):
-        result = self.start.to_index()
+        result = self.start
         result <<= BOARD_HEIGHT
-        result |= self.end.to_index()
+        result |= self.end
         result <<= 4 # 16 cards = 4 bits
         result |= INDEX_CARD[self.card]
         return result
@@ -98,7 +116,7 @@ class Move(NamedTuple):
         end_index = representation & ((1 << BOARD_HEIGHT) - 1)
         representation >>= BOARD_HEIGHT
         start_index = representation
-        return cls(Point.from_index(start_index), Point.from_index(end_index), CARD_INDEX[card_index])
+        return cls(start_index, end_index, CARD_INDEX[card_index])
 
 class Game:
     WIN_BITMASK = [0b00000_00000_00000_00000_00100, 0b00100_00000_00000_00000_00000]
@@ -201,27 +219,54 @@ class Game:
         return serialized
 
     def legal_moves(self):
+        # adapted from https://github.com/maxbennedich/onitama/blob/master/src/main/java/onitama/ai/MoveGenerator.java
         cards = self.red_cards if self.current_player == 0 else self.blue_cards
         has_valid_move = False
 
         player_bitboard = self.bitboard_king[self.current_player] | self.bitboard_pawns[self.current_player]
+        start_pos = -1
+        start_trailing_zeroes = -1
 
-        for y in range(BOARD_HEIGHT):
-            for x in range(BOARD_WIDTH):
-                if self.board[y][x] * self.current_player > 0:
-                    for card in cards:
-                        for card_move in card.moves:
-                            new_x = x + self.current_player * card_move.x
-                            new_y = y + self.current_player * card_move.y
-                            if new_x in range(BOARD_WIDTH) and new_y in range(BOARD_HEIGHT) and self.board[new_y][new_x] * self.current_player <= 0:
-                                has_valid_move = True
-                                yield Move(Point(x, y), Point(new_x, new_y), card.name)
+        # Loop over current player's pieces
+        while True:
+            # pop last piece
+            player_bitboard >>= start_trailing_zeroes + 1
+            start_trailing_zeroes = count_trailing_zeroes(player_bitboard)
+            if start_trailing_zeroes == 32:
+                break
+            start_pos += start_trailing_zeroes + 1
+
+            for card in cards:
+                move_bitmask = card.move_table[self.current_player][start_pos]
+                # prevent moving onto own pieces
+                move_bitmask &= ~self.bitboard_pawns[self.current_player]
+                move_bitmask &= ~self.bitboard_king[self.current_player]
+
+                end_pos = -1
+                end_trailing_zeroes = -1
+
+                while True:
+                    # pop move
+                    move_bitmask >>= end_trailing_zeroes + 1
+                    end_trailing_zeroes = count_trailing_zeroes(move_bitmask)
+                    if end_trailing_zeroes == 32:
+                        break
+                    end_pos += end_trailing_zeroes + 1
+
+                    has_valid_move = True
+
+                    yield Move(start_pos, end_pos, card.name)
+
         if not has_valid_move:
             # pass due to no piece moves, but have to swap a card
             for card in cards:
-                yield Move(Point(0, 0), Point(0, 0), card)
+                yield Move(0, 0, card.name)
     
-    def apply_move(self, start_mask: int, end_mask: int, card: str):
+    def apply_move(self, move: Move):
+        start_mask = 1 << move.start
+        end_mask = 1 << move.end
+        card = move.card
+
         cards = self.red_cards if self.current_player == 0 else self.blue_cards
         card_idx = 0 if cards[0].name == card else 1
 
