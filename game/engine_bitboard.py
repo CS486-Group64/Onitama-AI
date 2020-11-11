@@ -93,6 +93,15 @@ def count_trailing_zeroes(num):
         count |= 16 
     return count
 
+def count_bits(n):
+    # adapted from https://stackoverflow.com/a/9830282 for 32 bits
+    n = (n & 0x55555555) + ((n & 0xAAAAAAAA) >> 1)
+    n = (n & 0x33333333) + ((n & 0xCCCCCCCC) >> 2)
+    n = (n & 0x0F0F0F0F) + ((n & 0xF0F0F0F0) >> 4)
+    n = (n & 0x00FF00FF) + ((n & 0xFF00FF00) >> 8)
+    n = (n & 0x0000FFFF) + ((n & 0xFFFF0000) >> 16)
+    return n
+
 class Move(NamedTuple):
     start: int
     end: int
@@ -119,6 +128,7 @@ class Move(NamedTuple):
         return cls(start_index, end_index, CARD_INDEX[card_index])
 
 class Game:
+    WIN_SCORE = 50
     WIN_BITMASK = [0b00000_00000_00000_00000_00100, 0b00100_00000_00000_00000_00000]
 
     def __init__(self, *, red_cards: Optional[List[Card]] = None, blue_cards: Optional[List[Card]] = None,
@@ -139,17 +149,40 @@ class Game:
             card = random.sample(cards, k=1)[0]
             neutral_card = ONITAMA_CARDS.get(card)
             cards.remove(card)
-        if not starting_player:
+        if starting_player is None:
             starting_player = neutral_card.starting_player
         
         self.red_cards = red_cards
         self.blue_cards = blue_cards
         self.neutral_card = neutral_card
-        # -1, 1 -> 0, 1 (red, blue)
-        self.current_player = (starting_player + 1) // 2
+        self.current_player = starting_player
         # board
         self.bitboard_king = bitboard_king or [0b00100_00000_00000_00000_00000, 0b00000_00000_00000_00000_00100]
         self.bitboard_pawns = bitboard_pawns or [0b11011_00000_00000_00000_00000, 0b00000_00000_00000_00000_11011]
+    
+    @classmethod
+    def from_string(cls, board, red_cards, blue_cards, neutral_card, starting_player=None):
+        red_cards = [ONITAMA_CARDS.get(card) for card in red_cards]
+        blue_cards = [ONITAMA_CARDS.get(card) for card in blue_cards]
+        neutral_card = ONITAMA_CARDS.get(neutral_card)
+
+        bitboard_king = [0, 0]
+        bitboard_pawns = [0, 0]
+
+        for y, row in enumerate(board.split("\n")):
+            for x, char in enumerate(row):
+                pos = Point(x, y).to_index()
+                if char == "R":
+                    bitboard_king[0] |= 1 << pos
+                elif char == "B":
+                    bitboard_king[1] |= 1 << pos
+                elif char == "r":
+                    bitboard_pawns[0] |= 1 << pos
+                elif char == "b":
+                    bitboard_pawns[1] |= 1 << pos
+        return cls(red_cards=red_cards, blue_cards=blue_cards, neutral_card=neutral_card,
+                   bitboard_king=bitboard_king, bitboard_pawns=bitboard_pawns,
+                   starting_player=starting_player)
     
     def get_piece_char_mapping(self):
         return {
@@ -188,12 +221,17 @@ class Game:
                 )
     
     def copy(self):
-        return Game(red_cards=self.red_cards, blue_cards=self.blue_cards, neutral_card=self.neutral_card,
+        return Game(red_cards=self.red_cards.copy(), blue_cards=self.blue_cards.copy(), neutral_card=self.neutral_card,
                     starting_player=self.current_player,
                     bitboard_king=self.bitboard_king.copy(), bitboard_pawns=self.bitboard_pawns.copy())
     
-    def __repr__(self):
+    def __str__(self):
         return f"Game(\n{self.visualize()}\n)"
+
+    def __repr__(self):
+        return (f"Game(red_cards={self.red_cards[0].name, self.red_cards[1].name!r}, blue_cards={self.blue_cards[0].name, self.blue_cards[1].name!r}, "
+                f"neutral_card={self.neutral_card.name!r}, current_player={self.current_player!r}, "
+                f"bitboard_king={self.bitboard_king!r}, bitboard_pawns={self.bitboard_pawns!r})")
     
     def serialize(self):
         serialized = self.current_player
@@ -280,10 +318,12 @@ class Game:
             # moved own pawn
             self.bitboard_pawns[self.current_player] &= ~start_mask
             self.bitboard_pawns[self.current_player] |= end_mask
-        else:
+        elif self.bitboard_king[self.current_player] & start_mask:
             # moved own king
             self.bitboard_king[self.current_player] &= ~start_mask
             self.bitboard_king[self.current_player] |= end_mask
+        else: # TODO: remove since could have no "valid" move
+            raise AssertionError("invalid move", str(move), self)
 
         self.neutral_card, cards[card_idx] = cards[card_idx], self.neutral_card
         self.current_player = 1 - self.current_player
@@ -303,26 +343,15 @@ class Game:
         """Evaluates a given board position. Very arbitrary.
         Assigns a win to +/-50.
         Each piece is worth 2, king is worth 4.
-        Shortest distance (diagonals have length 1) from king to temple is subtracted."""
+        """
         winner = self.determine_winner()
         if winner:
-            return winner * 50
+            return winner * self.WIN_SCORE
         evaluation = 0
-        blue_king_x = blue_king_y = 0
-        red_king_x = red_king_y = 0
-        for y in range(BOARD_HEIGHT):
-            for x in range(BOARD_WIDTH):
-                # Piece evaluation
-                piece = self.board[y][x]
-                evaluation += piece * 2
-                if piece == 2:
-                    blue_king_x = x
-                    blue_king_y = y
-                elif piece == -2:
-                    red_king_x = x
-                    red_king_y = y
-        evaluation -= max(abs(blue_king_x - 2), abs(blue_king_y - 4))
-        evaluation += max(abs(red_king_x - 2), abs(red_king_y - 0))
+        for player in range(2):
+            player_sign = player * 2 - 1
+            evaluation += player_sign * 4 * count_bits(self.bitboard_king[player])
+            evaluation += player_sign * 2 * count_bits(self.bitboard_pawns[player])
         return evaluation
 
 
@@ -331,23 +360,23 @@ class Game:
 ONITAMA_CARDS = {
     # symmetrical
     "tiger": Card("tiger", 1, Point(0, -2), Point(0, 1)),
-    "dragon": Card("dragon", -1, Point(-2, -1), Point(2, -1), Point(-1, 1), Point(1, 1)),
+    "dragon": Card("dragon", 0, Point(-2, -1), Point(2, -1), Point(-1, 1), Point(1, 1)),
     "crab": Card("crab", 1, Point(0, -1), Point(-2, 0), Point(2, 0)),
-    "elephant": Card("elephant", -1, Point(-1, -1), Point(1, -1), Point(-1, 0), Point(1, 0)),
+    "elephant": Card("elephant", 0, Point(-1, -1), Point(1, -1), Point(-1, 0), Point(1, 0)),
     "monkey": Card("monkey", 1, Point(-1, -1), Point(1, -1), Point(-1, 1), Point(1, 1)),
-    "mantis": Card("mantis", -1, Point(-1, -1), Point(1, -1), Point(0, 1)),
+    "mantis": Card("mantis", 0, Point(-1, -1), Point(1, -1), Point(0, 1)),
     "crane": Card("crane", 1, Point(0, -1), Point(-1, 1), Point(1, 1)),
-    "boar": Card("boar", -1, Point(0, -1), Point(-1, 0), Point(1, 0)),
+    "boar": Card("boar", 0, Point(0, -1), Point(-1, 0), Point(1, 0)),
     # left-leaning
-    "frog": Card("frog", -1, Point(-1, -1), Point(-2, 0), Point(1, 1)),
+    "frog": Card("frog", 0, Point(-1, -1), Point(-2, 0), Point(1, 1)),
     "goose": Card("goose", 1, Point(-1, -1), Point(-1, 0), Point(1, 0), Point(1, 1)),
-    "horse": Card("horse", -1, Point(0, -1), Point(-1, 0), Point(0, 1)),
+    "horse": Card("horse", 0, Point(0, -1), Point(-1, 0), Point(0, 1)),
     "eel": Card("eel", 1, Point(-1, -1), Point(1, 0), Point(-1, 1)),
     # right-leaning
     "rabbit": Card("rabbit", 1, Point(1, -1), Point(2, 0), Point(-1, 1)),
-    "rooster": Card("rooster", -1, Point(1, -1), Point(-1, 0), Point(1, 0), Point(-1, 1)),
+    "rooster": Card("rooster", 0, Point(1, -1), Point(-1, 0), Point(1, 0), Point(-1, 1)),
     "ox": Card("ox", 1, Point(0, -1), Point(1, 0), Point(0, 1)),
-    "cobra": Card("cobra", -1, Point(1, -1), Point(-1, 0), Point(1, 1)),
+    "cobra": Card("cobra", 0, Point(1, -1), Point(-1, 0), Point(1, 1)),
 }
 
 CARD_INDEX = list(ONITAMA_CARDS)
