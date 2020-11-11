@@ -209,7 +209,7 @@ class Game:
             fancy_board.append(f"{5 - i} {line} {5 - i}")
         fancy_board.append("  abcde")
         fancy_board_str = "\n".join(fancy_board)
-        return (
+        return (f"serialized: {self.serialize()}\n"
                 f"current_player: {'blue' if self.current_player > 0 else 'red'}\n"
                 f"red_cards: {' '.join(card.name for card in self.red_cards)}\n" +
                 "\n".join(f"{c1}\t{c2}" for c1, c2 in zip(self.red_cards[0].visualize(reverse=True).split("\n"), self.red_cards[1].visualize(reverse=True).split("\n"))) +
@@ -255,6 +255,32 @@ class Game:
         serialized |= INDEX_CARD[self.neutral_card.name]
 
         return serialized
+    
+    @classmethod
+    def from_serialized(cls, serialized):
+        neutral_card = ONITAMA_CARDS.get(CARD_INDEX[serialized & ((1 << 4) - 1)])
+        serialized >>= 4
+        blue_2 = ONITAMA_CARDS.get(CARD_INDEX[serialized & ((1 << 4) - 1)])
+        serialized >>= 4
+        blue_1 = ONITAMA_CARDS.get(CARD_INDEX[serialized & ((1 << 4) - 1)])
+        serialized >>= 4
+        blue_cards = [blue_1, blue_2]
+        red_2 = ONITAMA_CARDS.get(CARD_INDEX[serialized & ((1 << 4) - 1)])
+        serialized >>= 4
+        red_1 = ONITAMA_CARDS.get(CARD_INDEX[serialized & ((1 << 4) - 1)])
+        serialized >>= 4
+        red_cards = [red_1, red_2]
+        bitboard_king = [0, 0]
+        bitboard_pawns = [0, 0]
+        for i in (1, 0):
+            bitboard_pawns[i] = serialized & ((1 << BOARD_WIDTH * BOARD_HEIGHT) - 1)
+            serialized >>= BOARD_WIDTH * BOARD_HEIGHT
+            bitboard_king[i] = serialized & ((1 << BOARD_WIDTH * BOARD_HEIGHT) - 1)
+            serialized >>= BOARD_WIDTH * BOARD_HEIGHT
+        starting_player = serialized
+        return cls(red_cards=red_cards, blue_cards=blue_cards, neutral_card=neutral_card,
+                   starting_player=starting_player,
+                   bitboard_king=bitboard_king, bitboard_pawns=bitboard_pawns)
 
     def legal_moves(self):
         # adapted from https://github.com/maxbennedich/onitama/blob/master/src/main/java/onitama/ai/MoveGenerator.java

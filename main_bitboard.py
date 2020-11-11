@@ -10,8 +10,8 @@ frog = ONITAMA_CARDS["frog"]
 move = Move(Point(0, 0), Point(1, 1), "monkey")
 
 g = Game()
-h = Game.from_string("""rr.rr\n.R...\n..B..\n.....\nbb.bb""",
-                     red_cards=["frog", "elephant"],
-                     blue_cards=["tiger", "tiger"],
-                     neutral_card="tiger",
+h = Game.from_string("""rrRr.\n...r.\n.....\n..B..\nbb.bb""",
+                     red_cards=["frog", "mantis"],
+                     neutral_card="crane",
+                     blue_cards=["rabbit", "dragon"],
                      starting_player=0)

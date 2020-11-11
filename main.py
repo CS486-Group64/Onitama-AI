@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from game import ONITAMA_CARDS, Game, OnitamaAI, Point
 
 
-def run_game(human, max_turns=100):
+def run_game(human, max_turns=100, time_limit_ms=None):
     # TODO figure out why ai doesn't recognize mate in one
     human_id = human * 2 - 1
     for i in range(max_turns):
@@ -15,14 +15,23 @@ def run_game(human, max_turns=100):
             while human_move is None:
                 legal_moves = list(g.legal_moves())
                 move_str = input("Enter your move. Format: card start end (e.g. tiger c1 c3). "
-                                 "Type 'quit' to quit. Type 'hint' for the ai's suggestion. "
+                                 "Type 'quit' to quit. Type 'hint [depth]' for the ai's suggestion. "
                                  "Type 'debug' to open an interactive console.\n> ")
                 if move_str == "quit":
                     return
-                elif move_str == "hint":
+                elif move_str.startswith("hint"):
+                    depth_limit = None
+                    try:
+                        depth_limit = int(move_str[len("hint "):])
+                    except ValueError:
+                        pass
                     print("AI is thinking...")
-                    ai_move, best_score, depth = ai.decide_move()
+                    if depth_limit is None:
+                        ai_move, best_score, depth = ai.decide_move(think_time=time_limit_ms)
+                    else:
+                        ai_move, best_score, depth = ai.decide_move(think_time=1000000, depth_limit=depth_limit)
                     print("AI recommends", ai_move, f"(Evaluation: {best_score} at depth {depth})")
+                    print(g.visualize())
                     continue
                 elif move_str == "debug":
                     import pdb
@@ -51,7 +60,7 @@ def run_game(human, max_turns=100):
         else:
             print("AI is thinking...")
             now = datetime.now()
-            ai_move, best_score, depth = ai.decide_move()
+            ai_move, best_score, depth = ai.decide_move(think_time=time_limit_ms)
             print("AI plays", ai_move, f"(Evaluation: {best_score} at depth {depth})")
             g.apply_move(ai_move)
             print("AI took", (datetime.now() - now).total_seconds(), "s")
@@ -78,8 +87,8 @@ if __name__ == "__main__":
     human = 1 # blue
     g = Game()
 
-    ai = OnitamaAI(g, 1 - human, timedelta(milliseconds=time_limit))
+    ai = OnitamaAI(g, 1 - human)
 
     print("Human is", "red" if human == 0 else "blue")
 
-    run_game(human)
+    run_game(human, time_limit_ms=time_limit)
