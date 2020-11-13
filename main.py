@@ -1,10 +1,23 @@
+import argparse
 from datetime import datetime, timedelta
 from game import ONITAMA_CARDS, Game, OnitamaAI, Point
 
 
-def run_game(human, max_turns=100, time_limit_ms=None):
-    # TODO figure out why ai doesn't recognize mate in one
+def run_game(args):
+    human = args.human
+    max_turns = args.max_turns
+    time_limit_ms = args.time_limit_ms
+
+    if args.load_state:
+        g = Game.from_serialized(args.load_state)
+    else:
+        g = Game()
+    
+    ai = OnitamaAI(g, 1 - human)
     human_id = human * 2 - 1
+
+    print("Human is", "red" if human == 0 else "blue")
+
     for i in range(max_turns):
         print("Turn", i // 2 + 1, "red" if g.current_player == 0 else "blue")
         print(g.visualize())
@@ -73,22 +86,12 @@ def run_game(human, max_turns=100, time_limit_ms=None):
     print("Draw due to round limit")
 
 if __name__ == "__main__":
-    time_limit = 0
-    while not time_limit:
-        try:
-            time_limit_str = input("Enter AI time limit in milliseconds (default 200ms): ")
-            if time_limit_str:
-                time_limit = int(time_limit_str)
-            else:
-                time_limit = 200
-        except ValueError:
-            print("Time limit must be an integer.")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-l", "--load_state", default=None, type=int)
+    parser.add_argument("-p", "--human", default=1, help="0 is red, 1 is blue")
+    parser.add_argument("-t", "--time_limit_ms", default=200, type=int)
+    parser.add_argument("-m", "--max_turns", default=100, type=int)
 
-    human = 1 # blue
-    g = Game()
+    args = parser.parse_args()
 
-    ai = OnitamaAI(g, 1 - human)
-
-    print("Human is", "red" if human == 0 else "blue")
-
-    run_game(human, time_limit_ms=time_limit)
+    run_game(args)
