@@ -110,7 +110,7 @@ class Move(NamedTuple):
     def __str__(self):
         return f"{self.card} {Point.from_index(self.start).to_algebraic_notation()} {Point.from_index(self.end).to_algebraic_notation()}"
     
-    def to_compact_repr(self):
+    def serialize(self):
         result = self.start
         result <<= BOARD_HEIGHT
         result |= self.end
@@ -119,7 +119,7 @@ class Move(NamedTuple):
         return result
     
     @classmethod
-    def from_compact_repr(cls, representation):
+    def from_serialized(cls, representation):
         card_index = representation & ((1 << 4) - 1)
         representation >>= 4
         end_index = representation & ((1 << BOARD_HEIGHT) - 1)

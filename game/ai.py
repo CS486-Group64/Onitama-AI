@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import random
 
-from . import Game
+from . import Game, Move
 
 INF = 1000
 
@@ -52,11 +52,10 @@ class OnitamaAI:
                     break
             return best_score
     
-    def decide_move(self, depth_limit=1000, think_time=500):
+    def evaluate_moves(self, depth_limit, think_time):
         time_limit = datetime.now() + timedelta(milliseconds=think_time)
         current_player = self.game.current_player * 2 - 1
-        best_move = []
-        best_score = -INF * current_player
+        moves = {}
         
         # Perform iterative deepening search
         depth = 0
@@ -69,13 +68,28 @@ class OnitamaAI:
                 game_score = self.minimax(new_game, depth, -INF, INF, time_limit)
                 self.state_cache[depth, new_game.serialize()] = game_score
 
+                # Override previous evaluations of this move as we search deeper
+                moves[move.serialize()] = [game_score, depth]
 
-                if current_player * game_score > current_player * best_score:
-                    best_score = game_score
-                    best_move = [move]
-                elif game_score == best_score:
-                    best_move.append(move)
+        return moves
+    
+    def decide_move(self, depth_limit=1000, think_time=500, verbose=False):
+        moves = self.evaluate_moves(depth_limit, think_time)
+        current_player = self.game.current_player * 2 - 1
+        best_moves = []
+        best_score = -INF * current_player
+        for serialized_move, (game_score, depth) in moves.items():
+            if current_player * game_score > current_player * best_score:
+                best_score = game_score
+                best_moves = [serialized_move]
+            elif game_score == best_score:
+                best_moves.append(serialized_move)
 
-                print(f"Move {move} evaluation {game_score} at depth {depth} (new_game: {new_game.serialize()})")
-        ai_move = random.choice(best_move)
-        return ai_move, best_score, depth
+        if verbose:
+            for serialized_move in sorted(moves, key=lambda move: moves[move][0], reverse=self.game.current_player):
+                move = Move.from_serialized(serialized_move)
+                new_game = self.game.copy()
+                new_game.apply_move(move)
+                print(f"Move {move} evaluation {moves[serialized_move][0]} at depth {moves[serialized_move][1]} (new_game {new_game.serialize()})")
+        ai_move = random.choice(best_moves)
+        return Move.from_serialized(ai_move), best_score, moves[ai_move][1]
