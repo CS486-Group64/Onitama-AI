@@ -26,7 +26,6 @@ class OnitamaAI:
                 new_game.apply_move(move)
 
                 game_score = self.minimax(new_game, depth - 1, alpha, beta, time_limit)
-                self.state_cache[depth - 1, new_game.serialize()] = game_score
 
                 best_score = max(best_score, game_score)
                 alpha = max(alpha, best_score)
@@ -34,6 +33,8 @@ class OnitamaAI:
                     break
                 if time_limit and datetime.now() > time_limit:
                     break
+                # only save state if we didn't run out of time
+                self.state_cache[depth - 1, new_game.serialize()] = game_score
             return best_score
         else:
             best_score = INF
@@ -50,6 +51,8 @@ class OnitamaAI:
                     break
                 if time_limit and datetime.now() > time_limit:
                     break
+                # only save state if we didn't run out of time
+                self.state_cache[depth - 1, new_game.serialize()] = game_score
             return best_score
     
     def evaluate_moves(self, depth_limit, think_time):
@@ -66,6 +69,10 @@ class OnitamaAI:
                 new_game.apply_move(move)
 
                 game_score = self.minimax(new_game, depth, -INF, INF, time_limit)
+
+                if datetime.now() > time_limit:
+                    break
+                # only save state if we didn't run out of time
                 self.state_cache[depth, new_game.serialize()] = game_score
 
                 # Override previous evaluations of this move as we search deeper
