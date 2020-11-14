@@ -12,8 +12,8 @@ def run_game(args):
         g = Game.from_serialized(args.load_state)
     else:
         g = Game()
-    
-    ai = OnitamaAI(g, 1 - human)
+
+    ai = OnitamaAI(g, 1 - human, args.evaluation)
     human_id = human * 2 - 1
 
     print("Human is", "red" if human == 0 else "blue")
@@ -93,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--time_limit_ms", default=200, type=int)
     parser.add_argument("-m", "--max_turns", default=100, type=int)
     parser.add_argument("-v", "--verbose", default=False, action="store_true")
+    parser.add_argument("-e", "--evaluation", default=0, help="0 for piece evaluation, 1 for centre priority", type=int)
 
     args = parser.parse_args()
 

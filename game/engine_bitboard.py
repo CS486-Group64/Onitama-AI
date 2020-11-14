@@ -130,6 +130,12 @@ class Move(NamedTuple):
 class Game:
     WIN_SCORE = 50
     WIN_BITMASK = [0b00000_00000_00000_00000_00100, 0b00100_00000_00000_00000_00000]
+    CENTRE_PRIORITY_BITMASKS = [
+        0b01010_10001_00000_10001_01010,
+        0b00100_01010_10001_01010_00100,
+        0b00000_00100_01010_00100_00000,
+        0b00000_00000_00100_00000_00000
+    ]
 
     def __init__(self, *, red_cards: Optional[List[Card]] = None, blue_cards: Optional[List[Card]] = None,
                  neutral_card: Optional[Card] = None, starting_player=None,
@@ -159,7 +165,7 @@ class Game:
         # board
         self.bitboard_king = bitboard_king or [0b00100_00000_00000_00000_00000, 0b00000_00000_00000_00000_00100]
         self.bitboard_pawns = bitboard_pawns or [0b11011_00000_00000_00000_00000, 0b00000_00000_00000_00000_11011]
-    
+
     @classmethod
     def from_string(cls, board, red_cards, blue_cards, neutral_card, starting_player=None):
         red_cards = [ONITAMA_CARDS.get(card) for card in red_cards]
@@ -364,8 +370,8 @@ class Game:
             if self.bitboard_king[i] == self.WIN_BITMASK[i]:
                 return i * 2 - 1
         return 0
-    
-    def evaluate(self):
+
+    def piece_evaluate(self):
         """Evaluates a given board position. Very arbitrary.
         Assigns a win to +/-50.
         Each piece is worth 2, king is worth 4.
@@ -378,10 +384,33 @@ class Game:
             player_sign = player * 2 - 1
             evaluation += player_sign * 4 * count_bits(self.bitboard_king[player])
             evaluation += player_sign * 2 * count_bits(self.bitboard_pawns[player])
+
         return evaluation
 
-
-
+    def centre_priority_evaluate(self):
+        """Evaluates a given board position
+        Assings a win to +/-50
+        More points are given to pieces closer to the centre of the board
+        """
+        winner = self.determine_winner()
+        if winner:
+            return winner * self.WIN_SCORE
+        evaluation = 0
+        for player in range(2):
+            player_sign = player * 2 - 1
+            for i in range(4):
+                score = i + 1
+                evaluation += player_sign * score * count_bits(self.bitboard_king[player] &
+                                                               self.CENTRE_PRIORITY_BITMASKS[i])
+                evaluation += player_sign * score * count_bits(self.bitboard_pawns[player] &
+                                                               self.CENTRE_PRIORITY_BITMASKS[i])
+        return evaluation
+    
+    def evaluate(self, mode=0):
+        if mode == 1:
+            return self.centre_priority_evaluate()
+        else:
+            return self.piece_evaluate()
 
 ONITAMA_CARDS = {
     # symmetrical

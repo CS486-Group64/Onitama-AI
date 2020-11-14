@@ -50,6 +50,14 @@ class Move(NamedTuple):
         return f"{self.card} {self.start.to_algebraic_notation()} {self.end.to_algebraic_notation()}"
 
 class Game:
+    CENTRE_PRIORITY_SCORE_GRID = [
+        [0,1,2,1,0],
+        [1,2,3,2,1],
+        [2,3,4,3,2],
+        [1,2,3,2,1],
+        [0,1,2,1,0]
+    ]
+
     def __init__(self, *, red_cards: Optional[List[str]] = None, blue_cards: Optional[List[str]] = None,
                  neutral_card: Optional[List[str]] = None, board=None, starting_player=None):
         """Represents an Onitama game. Generates random cards to fill in missing red_cards, blue_cards,
@@ -167,8 +175,8 @@ class Game:
         if 2 not in self.board:
             return -1
         return 0
-    
-    def evaluate(self):
+
+    def piece_evaluate(self):
         """Evaluates a given board position. Very arbitrary.
         Assigns a win to +/-50.
         Each piece is worth 2, king is worth 4.
@@ -194,8 +202,29 @@ class Game:
         evaluation += max(abs(red_king_x - 2), abs(red_king_y - 0))
         return evaluation
 
-
-
+    def centre_priority_evaluate(self):
+        """Evaluates a given board position
+        Assings a win to +/-50
+        More points are given to pieces closer to the centre of the board
+        """
+        winner = self.determine_winner()
+        if winner:
+            return winner * 50
+        evaluation = 0
+        for y in range(BOARD_HEIGHT):
+            for x in range(BOARD_WIDTH):
+                piece = self.board[y][x]
+                if piece > 0:
+                    evaluation += self.CENTRE_PRIORITY_SCORE_GRID[y][x]
+                elif piece < 0:
+                    evaluation -= self.CENTRE_PRIORITY_SCORE_GRID[y][x]
+        return evaluation
+    
+    def evaluate(self, mode=0):
+        if mode == 1:
+            return self.centre_priority_evaluate()
+        else:
+            return self.piece_evaluate()
 
 ONITAMA_CARDS = {
     # symmetrical

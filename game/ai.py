@@ -6,9 +6,10 @@ from . import Game, Move
 INF = 1000
 
 class OnitamaAI:
-    def __init__(self, game, ai_player=0):
+    def __init__(self, game, ai_player=0, evaluation_mode=0):
         self.game = game
         self.ai_player = ai_player * 2 - 1
+        self.evaluation_mode = evaluation_mode
         self.state_cache = {}
     
     def minimax(self, game: Game, depth, alpha, beta, time_limit=None):
@@ -16,7 +17,7 @@ class OnitamaAI:
         if cached:
             return cached
         if depth <= 0 or game.determine_winner():
-            evaluation = game.evaluate()
+            evaluation = game.evaluate(self.evaluation_mode)
             self.state_cache[depth, game.serialize()] = evaluation
             return evaluation
         if game.current_player > 0:
