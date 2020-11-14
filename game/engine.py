@@ -100,6 +100,10 @@ class Game:
         self.neutral_card = neutral_card
         self.current_player = starting_player
     
+    def from_serialized(cls, serialized):
+        # HACK
+        return cls(red_cards=[])
+    
     def visualize_piece(self, piece):
         # piece_mapping = {-2: "R", -1: "r", 0: ".", 1: "b", 2: "B"}
         return [".", "b", "B", "R", "r"][piece]
