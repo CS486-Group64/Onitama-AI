@@ -39,12 +39,14 @@ def run_game(args):
                     except ValueError:
                         pass
                     print("AI is thinking...")
+                    now = datetime.now()
                     if depth_limit is None:
                         ai_move, best_score, depth = ai.decide_move(think_time=time_limit_ms, verbose=args.verbose)
                     else:
                         ai_move, best_score, depth = ai.decide_move(
                             think_time=1000000, depth_limit=depth_limit, verbose=args.verbose)
                     print("AI recommends", ai_move, f"(Evaluation: {best_score} at depth {depth})")
+                    print("AI took", (datetime.now() - now).total_seconds(), "s")
                     print(g.visualize())
                     continue
                 elif move_str == "debug":
