@@ -47,7 +47,15 @@ class Move(NamedTuple):
     card: str
 
     def __str__(self):
+        return self.serialize()
+
+    def serialize(self):
         return f"{self.card} {self.start.to_algebraic_notation()} {self.end.to_algebraic_notation()}"
+    
+    @classmethod
+    def from_serialized(cls, serialized):
+        card, start, end = serialized.split(" ")
+        return cls(Point.from_algebraic_notation(start), Point.from_algebraic_notation(end), card)
 
 class Game:
     CENTRE_PRIORITY_SCORE_GRID = [
@@ -100,9 +108,10 @@ class Game:
         self.neutral_card = neutral_card
         self.current_player = starting_player
     
+    @classmethod
     def from_serialized(cls, serialized):
         # HACK
-        return cls(red_cards=[])
+        return cls(red_cards=["crab", "crane"], blue_cards=["mantis", "rooster"], neutral_card="goose")
     
     def visualize_piece(self, piece):
         # piece_mapping = {-2: "R", -1: "r", 0: ".", 1: "b", 2: "B"}
