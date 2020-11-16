@@ -52,6 +52,7 @@ def run_game(args):
                 return i
     print(g.visualize())
     print("Draw due to round limit")
+    return i
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -66,4 +67,4 @@ if __name__ == "__main__":
 
     start = datetime.now()
     num_moves = run_game(args)
-    print("Game took", (datetime.now() - start).total_seconds(), "and", num_moves, "moves")
+    print("Game took", (datetime.now() - start).total_seconds(), "s and", num_moves, "moves")
