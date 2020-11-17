@@ -28,14 +28,19 @@ class OnitamaAI:
 
                 game_score = self.minimax(new_game, depth - 1, alpha, beta, time_limit)
 
+                winner = new_game.determine_winner()
+                if winner:
+                    # prioritize moves that end the game faster if blue, and prolong if red
+                    game_score += depth * winner * 0.01
+
                 best_score = max(best_score, game_score)
                 alpha = max(alpha, best_score)
-                if beta <= alpha or new_game.determine_winner():
-                    break
                 if time_limit and datetime.now() > time_limit:
                     break
                 # only save state if we didn't run out of time
                 self.state_cache[depth - 1, new_game.serialize()] = game_score
+                if beta <= alpha or winner:
+                    break
             return best_score
         else:
             best_score = INF
@@ -44,16 +49,20 @@ class OnitamaAI:
                 new_game.apply_move(move)
 
                 game_score = self.minimax(new_game, depth - 1, alpha, beta, time_limit)
-                self.state_cache[depth - 1, new_game.serialize()] = game_score
+
+                winner = new_game.determine_winner()
+                if winner:
+                    # prioritize moves that end the game faster if blue, and prolong if red
+                    game_score -= depth * winner * 0.01
 
                 best_score = min(best_score, game_score)
                 beta = min(beta, best_score)
-                if beta <= alpha or new_game.determine_winner():
-                    break
                 if time_limit and datetime.now() > time_limit:
                     break
                 # only save state if we didn't run out of time
                 self.state_cache[depth - 1, new_game.serialize()] = game_score
+                if beta <= alpha or winner:
+                    break
             return best_score
     
     def evaluate_moves(self, depth_limit, think_time):

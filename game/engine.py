@@ -191,12 +191,8 @@ class Game:
 
     def piece_evaluate(self):
         """Evaluates a given board position. Very arbitrary.
-        Assigns a win to +/-50.
         Each piece is worth 2, king is worth 4.
         Shortest distance (diagonals have length 1) from king to temple is subtracted."""
-        winner = self.determine_winner()
-        if winner:
-            return winner * 50
         evaluation = 0
         blue_king_x = blue_king_y = 0
         red_king_x = red_king_y = 0
@@ -217,12 +213,8 @@ class Game:
 
     def centre_priority_evaluate(self):
         """Evaluates a given board position
-        Assings a win to +/-50
         More points are given to pieces closer to the centre of the board
         """
-        winner = self.determine_winner()
-        if winner:
-            return winner * 50
         evaluation = 0
         for y in range(BOARD_HEIGHT):
             for x in range(BOARD_WIDTH):
@@ -234,8 +226,18 @@ class Game:
         return evaluation
     
     def evaluate(self, mode=0):
+         """Evaluates a given board position
+        uses different evaluation heuristic depending on mode
+        Assigns a win to +/-50.
+        """
+        winner = self.determine_winner()
+        if winner:
+            return winner * 50
+        
         if mode == 1:
             return self.centre_priority_evaluate()
+        elif mode == 2:
+            return 0.5 * (self.centre_priority_evaluate() + self.piece_evaluate())
         else:
             return self.piece_evaluate()
 
