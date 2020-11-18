@@ -92,8 +92,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-l", "--load_state", default=None, type=int)
     parser.add_argument("--human", default=1, help="0 is red, 1 is blue", type=int)
-    parser.add_argument("-t", "--time_limit_ms", default=200, type=int)
-    parser.add_argument("-m", "--max_turns", default=100, type=int)
+    parser.add_argument("-t", "--time_limit_ms", default=10000, type=int)
+    parser.add_argument("-m", "--max_turns", default=50, type=int)
     parser.add_argument("-v", "--verbose", default=False, action="store_true")
     parser.add_argument("-e", "--evaluation", default=0, help="0 for piece evaluation, 1 for centre priority, 2 for combination of both", type=int)
 
