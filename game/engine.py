@@ -226,7 +226,7 @@ class Game:
         return evaluation
     
     def evaluate(self, mode=0):
-         """Evaluates a given board position
+        """Evaluates a given board position
         uses different evaluation heuristic depending on mode
         Assigns a win to +/-50.
         """
